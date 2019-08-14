@@ -158,7 +158,7 @@ def get_weekly_data(ticker, plot=False):
     return data
 
 def get_hundred_day_data(ticker, plot=False):
-    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=100)
+    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=99)
     data = pd.DataFrame.from_dict(hist)
     if plot:
         print(data.head())
@@ -261,38 +261,55 @@ def trend_algo(ticker):
 ##################### {[ BACKTESTING ]} #####################
 
 
-def greed_fear_backtest():
+def greed_fear_backtest(plot=False):
     gf_index = get_greed_fear_index(backtest=True)
     price = get_hundred_day_data("BTC")
+    gf_index = gf_index.shift(1)
+    data = price.join(gf_index)
+    data["buy"] = 0
+    data["sell"] = 0
+    data.loc[(data.value < 30), "buy"] = data.close
+    data.loc[(data.value > 60) & (data.close - data.open > 600), "sell"] = data.close
+    print(data.to_string())
 
-    fig, ax1 = plt.subplots()
+    if plot:
+        fig, ax1 = plt.subplots()
 
-    color = 'tab:red'
-    ax1.set_xlabel("Time (D)")
-    ax1.set_ylabel('BTC', color=color)
-    ax1.plot(price.time, price.close, color=color)
-    ax1.tick_params(axis='y', labelcolor=color)
+        color = 'tab:red'
+        ax1.set_xlabel("Time (D)")
+        ax1.set_ylabel('BTC', color=color)
+        ax1.scatter(data.time, data.buy, color="blue")
+        ax1.scatter(data.time, data.sell, color="red")
+        ax1.plot(data.time, price.close, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
 
-    ax2 = ax1.twinx()
+        ax2 = ax1.twinx()
 
-    color = 'tab:blue'
-    ax2.set_ylabel('Index', color=color)
-    ax2.plot(gf_index.value, label="index", color=color)
-    ax2.tick_params(axis='y', labelcolor=color)
-    fig.tight_layout()
-    plt.grid(True)
-    plt.show()
+        color = 'tab:blue'
+        ax2.set_ylabel('Index', color=color)
+        ax2.plot(data.value, label="index", color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        fig.tight_layout()
+        plt.grid(True)
+        plt.show()
 
 
 ##################### {[ IMPLEMENTATION ]} #####################
 
 
-def start_trade():
+def trend_trade():
     while True:
         if trend_algo("BTC"):
             print("BUY")
         else:
             print("HOLD/SELL")
+
+def greed_fear_trade():
+    # Buy below thirty
+    # Sell Above ninety or 
+    # Sell over 60, when last btc change was over 5% up...
+    # Spikes up more than 40% in last 10 days
+    pass
 
 
 ##################### {[ TELEGRAM ]} #####################
@@ -302,7 +319,7 @@ def send_msg(msg):
     with TelegramClient('Simba', telegram_id, telegram_hash) as client:
         client.send_message('jzsig', '{}'.format(msg))
 
-        
+
 ##################### {[ FUNCTION CALLS ]} #####################
 
         
@@ -326,4 +343,4 @@ def send_msg(msg):
 # send_msg(get_bitbrasil_balance())
 # trend_algo("BTC")
 # get_greed_fear_index(True)
-greed_fear_backtest()
+greed_fear_backtest(plot=True)
