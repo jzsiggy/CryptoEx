@@ -7,6 +7,7 @@ from config import *
 from cryptocompy import coin, price
 from matplotlib import pyplot as plt
 from poloniex import Poloniex
+from pprint import pprint
 from pycoingecko import CoinGeckoAPI
 from pytrends.request import TrendReq
 from telethon import TelegramClient, events, sync
@@ -156,6 +157,20 @@ def get_weekly_data(ticker, plot=False):
         plt.show()
     return data
 
+def get_hundred_day_data(ticker, plot=False):
+    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=100)
+    data = pd.DataFrame.from_dict(hist)
+    if plot:
+        print(data.head())
+        print(data.tail())
+        plt.plot(data.time, data.close, label="Close")
+        plt.plot(data.time, data.high, label="High")
+        plt.plot(data.time, data.open, label="Open")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    return data
+
 
 ##################### {[ GOOGLE TRENDS ]} #####################
 
@@ -167,6 +182,28 @@ def get_pytrend_interest(display=False):
     if display:
         print(data.to_string())
     return data
+
+
+##################### {[ FEAR & GREED ]} #####################
+
+
+def get_greed_fear_index(display=False, backtest=False):
+    url = "https://api.alternative.me/fng/?limit=100&format=json&date_format=cn"
+    r = requests.get(url)
+    j = r.json()
+    data = pd.DataFrame(j["data"])
+    data = data.astype({'value': 'int32'})
+    data = data.reindex(index=data.index[::-1])
+    data = data.reset_index()
+    data.drop(["index"], axis=1, inplace=True)
+    if display:
+        print(data)
+        data.plot()
+        plt.show()
+        print(data.value[len(data)-1])
+    if backtest:
+        return data
+    return(data.value[len(data)-1])
 
 
 ##################### {[ STARTEGIES & ALGORITHMS ]} #####################
@@ -203,17 +240,59 @@ def trend_algo(ticker):
     # prices["time"] = prices["time"].str[:10]
     prices.rename(columns = {'time':'date'}, inplace = True)
     prices.index = prices.date
-    prices.drop(["date", "close", "high", "low", "open", "volumefrom", "volumeto"], axis = 1, inplace = True)
+    prices.drop(["date", "volumefrom", "volumeto"], axis = 1, inplace = True)
     trends = get_pytrend_interest()
     trends["ratio"] = 0
     trends.ratio = trends["buy bitcoin"] / trends["BTC USD"]
-    print(trends.ratio.mean())
-    print(prices.change)
+    ratio = trends.ratio.mean()
+    last_change = prices.change[-1]
+    # print(ratio)
+    # print(prices)
+    if ratio * 100 > 34 and last_change > 80:
+        return True
+    else:
+        return False
 
     # data = prices.join(trends)
     # data.drop(["close", "high", "low", "open", "volumefrom", "volumeto", "BTC USD", "buy bitcoin", "isPartial"], axis = 1, inplace = True)
     # data['ratio MA'] = data.rolling(window=24)["ratio"].mean()
 
+
+##################### {[ BACKTESTING ]} #####################
+
+
+def greed_fear_backtest():
+    gf_index = get_greed_fear_index(backtest=True)
+    price = get_hundred_day_data("BTC")
+
+    fig, ax1 = plt.subplots()
+
+    color = 'tab:red'
+    ax1.set_xlabel("Time (D)")
+    ax1.set_ylabel('BTC', color=color)
+    ax1.plot(price.time, price.close, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Index', color=color)
+    ax2.plot(gf_index.value, label="index", color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+    fig.tight_layout()
+    plt.grid(True)
+    plt.show()
+
+
+##################### {[ IMPLEMENTATION ]} #####################
+
+
+def start_trade():
+    while True:
+        if trend_algo("BTC"):
+            print("BUY")
+        else:
+            print("HOLD/SELL")
 
 
 ##################### {[ TELEGRAM ]} #####################
@@ -223,7 +302,7 @@ def send_msg(msg):
     with TelegramClient('Simba', telegram_id, telegram_hash) as client:
         client.send_message('jzsig', '{}'.format(msg))
 
-
+        
 ##################### {[ FUNCTION CALLS ]} #####################
 
         
@@ -235,7 +314,7 @@ def send_msg(msg):
 # bitbrasil_balance()
 # get_rsi("BTC", True)
 # get_montante("BTC")
-get_bitbrasil_balance()
+# get_bitbrasil_balance()
 # get_transactions()
 # get_estimate_price("BTC")
 # buy_all_()
@@ -246,3 +325,5 @@ get_bitbrasil_balance()
 # get_pytrend_interest()
 # send_msg(get_bitbrasil_balance())
 # trend_algo("BTC")
+# get_greed_fear_index(True)
+greed_fear_backtest()
