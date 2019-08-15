@@ -15,6 +15,7 @@ import requests
 import pandas as pd
 import pymongo
 import talib as ta
+import time
 
 
 polo = Poloniex(key=polo_key, secret=polo_secret)
@@ -25,18 +26,18 @@ pytrends = TrendReq(hl='en-US', tz=360)
 ##################### {[ BRASIL BITCOIN ]} #####################
 
 
-def get_bitbrasil_balance():
+def get_bitbrasil_balance(display=False):
     url = "https://brasilbitcoin.com.br/api/get_balance"
     header = brasil_bit_header
     r = requests.get(url, headers=header)
     data = r.json()
-    montante = 0
-    for coin, quant in data.items():
-        print("[", coin.upper(), "]", quant)
     montante = float(data["brl"]) + (float(data["btc"]) * get_estimate_price("btc"))
-    # print(r.text)
-    print("[ TOTAL ]", montante)
-    return montante
+    if display:
+        for coin, quant in data.items():
+            print("[", coin.upper(), "]", quant)
+        # print(r.text)
+        print("[ TOTAL ]", montante)
+    return data
 
 def get_estimate_price(coin, display=False):
     url = "https://brasilbitcoin.com.br/api/estimate/sell/{}/1".format(coin.upper())
@@ -59,7 +60,21 @@ def buy_BRLBTC(quantity): # in reais
     header = brasil_bit_header
     payload = {"coin_pair" : "BRLBTC",
                 "type" : "buy",
-                "order_type" : "market",
+                "order_type" : "limited",
+                "amount" : real_to_btc(quantity),
+                "price" : price_of_one
+                }
+    r = requests.post(url, data=payload, headers=header)
+    print(r.text)
+    return r
+
+def sell_BRLBTC(quantity): # in reais
+    price_of_one = get_estimate_price("BTC")
+    url = "https://brasilbitcoin.com.br/api/create_order"
+    header = brasil_bit_header
+    payload = {"coin_pair" : "BRLBTC",
+                "type" : "sell",
+                "order_type" : "limited",
                 "amount" : real_to_btc(quantity),
                 "price" : price_of_one
                 }
@@ -98,6 +113,13 @@ def get_transactions():
     print(r.text)
     return(data)
 
+def cancel_order(order_id):
+    url = 'https://brasilbitcoin.com.br/api/remove_order/{}'.format(order_id)
+    header = BrasilBit_header
+    r = requests.get(url, headers=header)
+    data = r.json()
+    print(data)
+
 
 ##################### {[ POLONIEX ]} #####################
 
@@ -126,8 +148,8 @@ def get_polo_coins():
 ##################### {[ CRIPTOCOMPARE ]} {[ COINGECKO ]} #####################
 
 
-def get_day_history(ticker):
-    hist = price.get_historical_data(ticker, 'USD', 'minute', aggregate=1, limit=900)
+def get_minute_data(ticker, quantity):
+    hist = price.get_historical_data(ticker, 'USD', 'minute', aggregate=1, limit=quantity)
     data = pd.DataFrame.from_dict(hist)
     print(data.head())
     print(data.tail())
@@ -143,22 +165,8 @@ def get_coin_price_by_date(ticker, date):   # dd-mm-yyyy
     price = cg.get_coin_history_by_id(ticker, date, localization="false")
     print(price)
 
-def get_weekly_data(ticker, plot=False):
-    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=7)
-    data = pd.DataFrame.from_dict(hist)
-    if plot:
-        print(data.head())
-        print(data.tail())
-        plt.plot(data.time, data.close, label="Close")
-        plt.plot(data.time, data.high, label="High")
-        plt.plot(data.time, data.open, label="Open")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-    return data
-
-def get_hundred_day_data(ticker, plot=False):
-    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=99)
+def get_daily_data(ticker, quantity, plot=False):
+    hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=quantity)
     data = pd.DataFrame.from_dict(hist)
     if plot:
         print(data.head())
@@ -209,8 +217,8 @@ def get_greed_fear_index(display=False, backtest=False):
 ##################### {[ STARTEGIES & ALGORITHMS ]} #####################
 
 
-def find_change(ticker, display=False):
-    data = get_weekly_data(ticker)
+def find_change(ticker, quantity, display=False):
+    data = get_daily_data(ticker, quantity)
     data["change"] = data.close - data.close.shift(1)
     data["percentChange"] = (data.close / data.close.shift(1) - 1) * 100
     if display:
@@ -263,7 +271,7 @@ def trend_algo(ticker):
 
 def greed_fear_backtest(plot=False):
     gf_index = get_greed_fear_index(backtest=True)
-    price = get_hundred_day_data("BTC")
+    price = get_daily_data("BTC", 100)
     gf_index = gf_index.shift(1)
     data = price.join(gf_index)
     data["buy"] = 0
@@ -304,12 +312,33 @@ def trend_trade():
         else:
             print("HOLD/SELL")
 
+
 def greed_fear_trade():
-    # Buy below thirty
-    # Sell Above ninety or 
-    # Sell over 60, when last btc change was over 5% up...
-    # Spikes up more than 40% in last 10 days
-    pass
+    while True:
+        TWENTYFOURHOURS = 86400
+        btc_price = get_estimate_price("BTC")
+        yesterday = find_change("BTC", 2)
+        change = yesterday.at[1, "percentChange"]
+        btc_balance_in_real = float(get_bitbrasil_balance()["btc"]) * btc_price
+        real_balance = float(get_bitbrasil_balance()["brl"])
+        gfi = get_greed_fear_index()
+
+        if len(get_open_orders()) > 0:
+            cancel_order(get_open_orders[0]["id"])
+            time.sleep(3600)
+            TWENTYFOURHOURS -= 3600
+
+        if gfi < 30:
+            # buy_BRLBTC(real_balance / 2)
+            print("buy", real_balance / 2)
+        elif gfi > 60 and change > 4:
+            # sell_BRLBTC(btc_balance_in_real / 2)
+            print("sell", btc_balance_in_real / 2)
+        else:
+            print("HOLD")
+        # check placed orders
+        print(btc_balance_in_real, real_balance)
+        time.sleep(TWENTYFOURHOURS)
 
 
 ##################### {[ TELEGRAM ]} #####################
@@ -323,9 +352,8 @@ def send_msg(msg):
 ##################### {[ FUNCTION CALLS ]} #####################
 
         
-# get_weekly_data("BTC", True)
+# get_daily_data("BTC", True, 7)
 # get_polo_coins()
-# get_day_history("BTC")
 # get_polo_price("BTC_ETH")
 # find_dip("BTC")
 # bitbrasil_balance()
@@ -336,7 +364,7 @@ def send_msg(msg):
 # get_estimate_price("BTC")
 # buy_all_()
 # real_to_btc(100)
-# buy_BRLBTC(100)
+# buy_BRLBTC(50)
 # get_open_orders()
 # check_orders(get_open_orders()[-1]["id"])
 # get_pytrend_interest()
@@ -344,3 +372,9 @@ def send_msg(msg):
 # trend_algo("BTC")
 # get_greed_fear_index(True)
 greed_fear_backtest(plot=True)
+# greed_fear_trade()
+
+
+
+##################### {[ TO-DO ]} #####################
+# check cancel order
