@@ -60,7 +60,7 @@ def buy_BRLBTC(quantity): # in reais
     header = brasil_bit_header
     payload = {"coin_pair" : "BRLBTC",
                 "type" : "buy",
-                "order_type" : "limited",
+                "order_type" : "market",
                 "amount" : real_to_btc(quantity),
                 "price" : price_of_one
                 }
@@ -107,15 +107,16 @@ def check_orders(order_id):
 
 def get_transactions():
     url = "https://brasilbitcoin.com.br/api/my_transactions"
-    header = BrasilBit_header
+    header = brasil_bit_header
     r = requests.get(url, headers=header)
     data = r.json()
-    print(r.text)
+    for transaction in data:
+        print(transaction)
     return(data)
 
 def cancel_order(order_id):
     url = 'https://brasilbitcoin.com.br/api/remove_order/{}'.format(order_id)
-    header = BrasilBit_header
+    header = brasil_bit_header
     r = requests.get(url, headers=header)
     data = r.json()
     print(data)
@@ -271,13 +272,13 @@ def trend_algo(ticker):
 
 def greed_fear_backtest(plot=False):
     gf_index = get_greed_fear_index(backtest=True)
-    price = get_daily_data("BTC", 100)
+    price = find_change("BTC", 100)
     gf_index = gf_index.shift(1)
     data = price.join(gf_index)
     data["buy"] = 0
     data["sell"] = 0
     data.loc[(data.value < 30), "buy"] = data.close
-    data.loc[(data.value > 60) & (data.close - data.open > 600), "sell"] = data.close
+    data.loc[(data.value > 60) & (data.percentChange.shift(0) > 6), "sell"] = data.close
     print(data.to_string())
 
     if plot:
@@ -297,48 +298,9 @@ def greed_fear_backtest(plot=False):
         ax2.set_ylabel('Index', color=color)
         ax2.plot(data.value, label="index", color=color)
         ax2.tick_params(axis='y', labelcolor=color)
+        ax1.xaxis.grid(True)
         fig.tight_layout()
-        plt.grid(True)
         plt.show()
-
-
-##################### {[ IMPLEMENTATION ]} #####################
-
-
-def trend_trade():
-    while True:
-        if trend_algo("BTC"):
-            print("BUY")
-        else:
-            print("HOLD/SELL")
-
-
-def greed_fear_trade():
-    while True:
-        TWENTYFOURHOURS = 86400
-        btc_price = get_estimate_price("BTC")
-        yesterday = find_change("BTC", 2)
-        change = yesterday.at[1, "percentChange"]
-        btc_balance_in_real = float(get_bitbrasil_balance()["btc"]) * btc_price
-        real_balance = float(get_bitbrasil_balance()["brl"])
-        gfi = get_greed_fear_index()
-
-        if len(get_open_orders()) > 0:
-            cancel_order(get_open_orders[0]["id"])
-            time.sleep(3600)
-            TWENTYFOURHOURS -= 3600
-
-        if gfi < 30:
-            # buy_BRLBTC(real_balance / 2)
-            print("buy", real_balance / 2)
-        elif gfi > 60 and change > 4:
-            # sell_BRLBTC(btc_balance_in_real / 2)
-            print("sell", btc_balance_in_real / 2)
-        else:
-            print("HOLD")
-        # check placed orders
-        print(btc_balance_in_real, real_balance)
-        time.sleep(TWENTYFOURHOURS)
 
 
 ##################### {[ TELEGRAM ]} #####################
@@ -356,25 +318,26 @@ def send_msg(msg):
 # get_polo_coins()
 # get_polo_price("BTC_ETH")
 # find_dip("BTC")
-# bitbrasil_balance()
 # get_rsi("BTC", True)
 # get_montante("BTC")
-# get_bitbrasil_balance()
-# get_transactions()
-# get_estimate_price("BTC")
+# get_bitbrasil_balance(True)
+# get_estimate_price("BTC", True)
 # buy_all_()
 # real_to_btc(100)
 # buy_BRLBTC(50)
+# sell_BRLBTC(50)
+# get_transactions()
+# cancel_order(get_open_orders()[0]["id"])
 # get_open_orders()
 # check_orders(get_open_orders()[-1]["id"])
 # get_pytrend_interest()
 # send_msg(get_bitbrasil_balance())
 # trend_algo("BTC")
 # get_greed_fear_index(True)
-greed_fear_backtest(plot=True)
+# greed_fear_backtest(plot=True)
 # greed_fear_trade()
 
 
 
+
 ##################### {[ TO-DO ]} #####################
-# check cancel order
