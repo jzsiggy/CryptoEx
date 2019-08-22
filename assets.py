@@ -9,11 +9,11 @@ from matplotlib import pyplot as plt
 from poloniex import Poloniex
 from pprint import pprint
 from pycoingecko import CoinGeckoAPI
+from pymongo import MongoClient
 from pytrends.request import TrendReq
 from telethon import TelegramClient, events, sync
 import requests
 import pandas as pd
-import pymongo
 import talib as ta
 import time
 
@@ -21,6 +21,9 @@ import time
 polo = Poloniex(key=polo_key, secret=polo_secret)
 cg = CoinGeckoAPI()
 pytrends = TrendReq(hl='en-US', tz=360)
+client = MongoClient("mongodb://localhost:27017/")
+db = client["BTC_db"]
+data = db["minute_data"]
 
 
 ##################### {[ BRASIL BITCOIN ]} #####################
@@ -112,7 +115,7 @@ def get_transactions():
     data = r.json()
     for transaction in data:
         print(transaction)
-    return(data)
+    return data
 
 def cancel_order(order_id):
     url = 'https://brasilbitcoin.com.br/api/remove_order/{}'.format(order_id)
@@ -120,6 +123,7 @@ def cancel_order(order_id):
     r = requests.get(url, headers=header)
     data = r.json()
     print(data)
+    return data
 
 
 ##################### {[ POLONIEX ]} #####################
@@ -134,6 +138,7 @@ def print_polo_balance():
 def get_polo_price(pair):
     price = polo.returnTicker()
     print(price[pair])
+    return price[pair]
 
 def get_polo_coins():
     coins = []
@@ -165,6 +170,7 @@ def get_minute_data(ticker, quantity):
 def get_coin_price_by_date(ticker, date):   # dd-mm-yyyy
     price = cg.get_coin_history_by_id(ticker, date, localization="false")
     print(price)
+    return price
 
 def get_daily_data(ticker, quantity, plot=False):
     hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=quantity)
@@ -204,15 +210,16 @@ def get_greed_fear_index(display=False, backtest=False):
     data = data.astype({'value': 'int32'})
     data = data.reindex(index=data.index[::-1])
     data = data.reset_index()
+    data["indicator_change"] = (data.value - data.value.shift(1))
     data.drop(["index"], axis=1, inplace=True)
     if display:
         print(data)
         data.plot()
         plt.show()
-        print(data.value[len(data)-1])
+        print(data.value[len(data)-1], data.indicator_change[len(data)-1])
     if backtest:
         return data
-    return(data.value[len(data)-1])
+    return(data.value[len(data)-1], data.indicator_change[len(data)-1])
 
 
 ##################### {[ STARTEGIES & ALGORITHMS ]} #####################
@@ -227,15 +234,15 @@ def find_change(ticker, quantity, display=False):
         print(data.tail())
     return data
 
-def find_dip(ticker):
-    data = find_change(ticker)
+def find_dip(ticker, quantity):
+    data = find_change(ticker, quantity)
     data["buy"] = 0
     data.loc[(data.percentChange.shift(1) < -6.5) & (data.percentChange > -2) & (data.percentChange < 2), "buy"] = 1
     print(data.to_string())
     return data
 
-def get_rsi(ticker, display=False):
-    data = find_change(ticker)
+def get_rsi(ticker, quantity, display=False):
+    data = find_change(ticker, quantity)
     data["BuySell"] = 0
     data["rsi"] = ta.RSI(data["close"].values)
     data.loc[(data.rsi >= 70), "BuySell"] = -1
@@ -244,8 +251,8 @@ def get_rsi(ticker, display=False):
         print(data.to_string())
     return(data)
 
-def trend_algo(ticker):
-    prices = find_change(ticker)
+def trend_algo(ticker, quantity):
+    prices = find_change(ticker, quantity)
     # prices["time"] = prices["time"].str[:10]
     prices.rename(columns = {'time':'date'}, inplace = True)
     prices.index = prices.date
@@ -277,8 +284,9 @@ def greed_fear_backtest(plot=False):
     data = price.join(gf_index)
     data["buy"] = 0
     data["sell"] = 0
-    data.loc[(data.value < 30), "buy"] = data.close
-    data.loc[(data.value > 60) & (data.percentChange.shift(0) > 6), "sell"] = data.close
+    data.loc[(data.indicator_change < -12) | (data.value < 30), "buy"] = data.close
+    # data.loc[(data.value > 60) & (data.percentChange.shift(0) > 6), "sell"] = data.close
+    data.loc[(data.indicator_change > 15) | (data.value > 90), "sell"] = data.close
     print(data.to_string())
 
     if plot:
@@ -303,6 +311,17 @@ def greed_fear_backtest(plot=False):
         plt.show()
 
 
+##################### {[ MONGODB ]} #####################
+
+
+def add_column(data):
+    pass
+
+def get_last_column():
+    pass
+
+
+
 ##################### {[ TELEGRAM ]} #####################
 
 
@@ -314,28 +333,26 @@ def send_msg(msg):
 ##################### {[ FUNCTION CALLS ]} #####################
 
         
-# get_daily_data("BTC", True, 7)
+# get_daily_data("BTC", 7, True)
 # get_polo_coins()
 # get_polo_price("BTC_ETH")
-# find_dip("BTC")
-# get_rsi("BTC", True)
-# get_montante("BTC")
+# find_dip("BTC", 7)
+# get_rsi("BTC", 7, True)
 # get_bitbrasil_balance(True)
 # get_estimate_price("BTC", True)
 # buy_all_()
 # real_to_btc(100)
 # buy_BRLBTC(50)
-# sell_BRLBTC(50)
+# sell_BRLBTC(100)
 # get_transactions()
 # cancel_order(get_open_orders()[0]["id"])
 # get_open_orders()
 # check_orders(get_open_orders()[-1]["id"])
 # get_pytrend_interest()
 # send_msg(get_bitbrasil_balance())
-# trend_algo("BTC")
-# get_greed_fear_index(True)
+# trend_algo("BTC", 7)
+get_greed_fear_index(True)
 # greed_fear_backtest(plot=True)
-# greed_fear_trade()
 
 
 
