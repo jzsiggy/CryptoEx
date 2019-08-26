@@ -2,3 +2,5 @@ config.py
 polo_env
 __pycache__
 Simba.session
+TODO
+.DS_Store
