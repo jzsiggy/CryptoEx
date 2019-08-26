@@ -63,7 +63,7 @@ def buy_BRLBTC(quantity): # in reais
     header = brasil_bit_header
     payload = {"coin_pair" : "BRLBTC",
                 "type" : "buy",
-                "order_type" : "market",
+                "order_type" : "limited",
                 "amount" : real_to_btc(quantity),
                 "price" : price_of_one
                 }
@@ -154,17 +154,19 @@ def get_polo_coins():
 ##################### {[ CRIPTOCOMPARE ]} {[ COINGECKO ]} #####################
 
 
-def get_minute_data(ticker, quantity):
+def get_minute_data(ticker, quantity, plot=False, display=False):
     hist = price.get_historical_data(ticker, 'USD', 'minute', aggregate=1, limit=quantity)
     data = pd.DataFrame.from_dict(hist)
-    print(data.head())
-    print(data.tail())
-    plt.plot(data.time, data.close, label="Close")
-    plt.plot(data.time, data.high, label="High")
-    plt.plot(data.time, data.open, label="Open")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    if display:
+        print(data.head())
+        print(data.tail())
+    if plot:
+        plt.plot(data.time, data.close, label="Close")
+        plt.plot(data.time, data.high, label="High")
+        plt.plot(data.time, data.open, label="Open")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
     return data
 
 def get_coin_price_by_date(ticker, date):   # dd-mm-yyyy
@@ -172,12 +174,13 @@ def get_coin_price_by_date(ticker, date):   # dd-mm-yyyy
     print(price)
     return price
 
-def get_daily_data(ticker, quantity, plot=False):
+def get_daily_data(ticker, quantity, plot=False, display=False):
     hist = price.get_historical_data(ticker, 'USD', 'day', aggregate=1, limit=quantity)
     data = pd.DataFrame.from_dict(hist)
-    if plot:
+    if display:
         print(data.head())
         print(data.tail())
+    if plot:
         plt.plot(data.time, data.close, label="Close")
         plt.plot(data.time, data.high, label="High")
         plt.plot(data.time, data.open, label="Open")
@@ -225,34 +228,49 @@ def get_greed_fear_index(display=False, backtest=False):
 ##################### {[ STARTEGIES & ALGORITHMS ]} #####################
 
 
-def find_change(ticker, quantity, display=False):
-    data = get_daily_data(ticker, quantity)
-    data["change"] = data.close - data.close.shift(1)
-    data["percentChange"] = (data.close / data.close.shift(1) - 1) * 100
-    if display:
-        print(data.head())
-        print(data.tail())
-    return data
+#                                                                                       #
+#  THE PARAMETERS FOR THESE FUNCTIONS MUST BE A DATAFRAME WITH AT LEAST "close" COLUMN  #
+#                                                                                       #
 
-def find_dip(ticker, quantity):
-    data = find_change(ticker, quantity)
+def find_change(df, display=False):
+    df["change"] = df.close - df.close.shift(1)
+    df["percentChange"] = (df.close / df.close.shift(1) - 1) * 100
+    if display:
+        print(df.head())
+        print(df.tail())
+    return df
+
+def find_dip(df):
+    data = find_change(df)
     data["buy"] = 0
     data.loc[(data.percentChange.shift(1) < -6.5) & (data.percentChange > -2) & (data.percentChange < 2), "buy"] = 1
     print(data.to_string())
     return data
 
-def get_rsi(ticker, quantity, display=False):
-    data = find_change(ticker, quantity)
-    data["BuySell"] = 0
+def get_rsi(df, display=False):
+    data = find_change(df)
     data["rsi"] = ta.RSI(data["close"].values)
-    data.loc[(data.rsi >= 70), "BuySell"] = -1
-    data.loc[(data.rsi <= 30), "BuySell"] = 1
     if display:
         print(data.to_string())
-    return(data)
+    return data
 
-def trend_algo(ticker, quantity):
-    prices = find_change(ticker, quantity)
+def get_bbp(df, plot=False):
+    data = find_change(df)
+    up, mid, low = ta.BBANDS(df.close, timeperiod=10, nbdevup=2, nbdevdn=2, matype=0)
+    data["upper_band"] = up
+    data["lower_band"] = low
+    data["mid_band"] = mid
+    # bbp = (df['close'] - low) / (up - low)
+    if plot:
+        plt.plot(data.time, data.upper_band, label="upper-band")
+        plt.plot(data.time, data.lower_band, label="lower-band")
+        plt.plot(data.time, data.mid_band, label="middle-band")
+        plt.plot(data.time, data.close, label="price")
+        plt.show()
+    return data
+
+def trend_algo(df):
+    prices = find_change(df)
     # prices["time"] = prices["time"].str[:10]
     prices.rename(columns = {'time':'date'}, inplace = True)
     prices.index = prices.date
@@ -278,8 +296,9 @@ def trend_algo(ticker, quantity):
 
 
 def greed_fear_backtest(plot=False):
+    daily_data = get_daily_data("BTC", 100)
     gf_index = get_greed_fear_index(backtest=True)
-    price = find_change("BTC", 100)
+    price = find_change(daily_data)
     gf_index = gf_index.shift(1)
     data = price.join(gf_index)
     data["buy"] = 0
@@ -311,6 +330,13 @@ def greed_fear_backtest(plot=False):
         plt.show()
 
 
+def day_trade_BB_rsi_backtest():
+    data = get_rsi(get_minute_data("BTC", 360, plot=False), display=False)
+    data["order"] = 0
+
+    print(data.to_string())
+
+
 ##################### {[ MONGODB ]} #####################
 
 
@@ -332,29 +358,29 @@ def send_msg(msg):
 
 ##################### {[ FUNCTION CALLS ]} #####################
 
-        
-# get_daily_data("BTC", 7, True)
-# get_polo_coins()
-# get_polo_price("BTC_ETH")
-# find_dip("BTC", 7)
-# get_rsi("BTC", 7, True)
-# get_bitbrasil_balance(True)
-# get_estimate_price("BTC", True)
-# buy_all_()
-# real_to_btc(100)
-# buy_BRLBTC(50)
-# sell_BRLBTC(100)
-# get_transactions()
-# cancel_order(get_open_orders()[0]["id"])
-# get_open_orders()
-# check_orders(get_open_orders()[-1]["id"])
-# get_pytrend_interest()
-# send_msg(get_bitbrasil_balance())
-# trend_algo("BTC", 7)
-get_greed_fear_index(True)
-# greed_fear_backtest(plot=True)
-
-
+if __name__ == "__main__":     
+    # get_daily_data("BTC", 7, True)
+    # get_polo_coins()
+    # get_polo_price("BTC_ETH")
+    # find_dip("BTC", 7)
+    # get_bitbrasil_balance(True)
+    # get_estimate_price("BTC", True)
+    # buy_all_()
+    # real_to_btc(100)
+    # buy_BRLBTC(50)
+    # sell_BRLBTC(100)
+    # get_transactions()
+    # cancel_order(get_open_orders()[0]["id"])
+    # get_open_orders()
+    # check_orders(get_open_orders()[-1]["id"])
+    # get_pytrend_interest()
+    # send_msg(get_bitbrasil_balance())
+    # trend_algo("BTC", 7)
+    # get_greed_fear_index(True)
+    # greed_fear_backtest(plot=True)
+    # day_trade_BB_rsi_backtest()
+    get_rsi(get_minute_data("BTC", 360), display=True)
+    # get_bbp(get_minute_data("BTC", 360), plot=True)
 
 
 ##################### {[ TO-DO ]} #####################
