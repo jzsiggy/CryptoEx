@@ -12,10 +12,10 @@ from pycoingecko import CoinGeckoAPI
 from pymongo import MongoClient
 from pytrends.request import TrendReq
 from telethon import TelegramClient, events, sync
+import numpy as np
 import requests
 import pandas as pd
 import talib as ta
-import time
 
 
 polo = Poloniex(key=polo_key, secret=polo_secret)
@@ -330,11 +330,44 @@ def greed_fear_backtest(plot=False):
         plt.show()
 
 
-def day_trade_BB_rsi_backtest():
-    data = get_rsi(get_minute_data("BTC", 360, plot=False), display=False)
-    data["order"] = 0
+def day_trade_BB_rsi_backtest(plot=False):
+    rsi = get_rsi(get_minute_data("BTC", 360, plot=False), display=False)
+    bbp = get_bbp(get_minute_data("BTC", 360, plot=False), plot=False)
+    data = rsi.merge(bbp)
+    data["buy"] = np.nan
+    data["sell"] = np.nan
+    data.loc[(data.rsi < 35) & ((data.close >= data.lower_band - 12) | (data.close <= data.lower_band + 12)), "buy"] = data.close
+    data.loc[(data.rsi > 60) & ((data.close >= data.upper_band - 12) | (data.close <= data.upper_band + 12)), "sell"] = data.close
 
-    print(data.to_string())
+    # data.loc[(data.rsi.shift(1) < 35) & ((data.close.shift(1) >= data.lower_band.shift(1) - 12) | (data.close.shift(1) <= data.lower_band.shift(1) + 12))
+    # & ((data.rsi > 35) | ((data.close <= data.lower_band - 12) | (data.close >= data.lower_band + 12))), "buy"] = data.close
+    
+    if plot:
+        print(data.to_string())
+
+        fig, ax1 = plt.subplots()
+
+        ax1.set_xlabel("Time (min)")
+        ax1.set_ylabel('BTC', color="black")
+
+        # ax1.plot(data.time, data.upper_band, color="red")
+        # ax1.plot(data.time, data.lower_band, color="blue")
+        # ax1.plot(data.time, data.mid_band, color="orange")
+
+        ax1.scatter(data.time, data.sell, color="red")
+        ax1.scatter(data.time, data.buy, color="blue")
+
+        ax1.plot(data.time, data.close, color="black")
+        ax1.tick_params(axis='y', labelcolor="black")
+
+        ax2 = ax1.twinx()
+
+        ax2.set_ylabel('RSI', color="purple")
+        # ax2.plot(data.time, data.rsi, label="rsi", color="purple")
+        ax2.tick_params(axis='y', labelcolor="purple")
+        # ax1.xaxis.grid(True)
+        fig.tight_layout()
+        plt.show()
 
 
 ##################### {[ MONGODB ]} #####################
@@ -358,29 +391,28 @@ def send_msg(msg):
 
 ##################### {[ FUNCTION CALLS ]} #####################
 
-if __name__ == "__main__":     
-    # get_daily_data("BTC", 7, True)
-    # get_polo_coins()
-    # get_polo_price("BTC_ETH")
-    # find_dip("BTC", 7)
-    # get_bitbrasil_balance(True)
-    # get_estimate_price("BTC", True)
-    # buy_all_()
-    # real_to_btc(100)
-    # buy_BRLBTC(50)
-    # sell_BRLBTC(100)
-    # get_transactions()
-    # cancel_order(get_open_orders()[0]["id"])
-    # get_open_orders()
-    # check_orders(get_open_orders()[-1]["id"])
-    # get_pytrend_interest()
-    # send_msg(get_bitbrasil_balance())
-    # trend_algo("BTC", 7)
-    # get_greed_fear_index(True)
-    # greed_fear_backtest(plot=True)
-    # day_trade_BB_rsi_backtest()
-    get_rsi(get_minute_data("BTC", 360), display=True)
-    # get_bbp(get_minute_data("BTC", 360), plot=True)
+# get_daily_data("BTC", 7, True)
+# get_polo_coins()
+# get_polo_price("BTC_ETH")
+# find_dip("BTC", 7)
+# get_bitbrasil_balance(True)
+# get_estimate_price("BTC", True)
+# buy_all_()
+# real_to_btc(100)
+# buy_BRLBTC(50)
+# sell_BRLBTC(100)
+# get_transactions()
+# cancel_order(get_open_orders()[0]["id"])
+# get_open_orders()
+# check_orders(get_open_orders()[-1]["id"])
+# get_pytrend_interest()
+# send_msg(get_bitbrasil_balance())
+# trend_algo("BTC", 7)
+# get_greed_fear_index(True)
+# greed_fear_backtest(plot=True)
+# day_trade_BB_rsi_backtest(plot=True)
+# get_rsi(get_minute_data("BTC", 360), display=True)
+# get_bbp(get_minute_data("BTC", 360), plot=True)
 
 
 ##################### {[ TO-DO ]} #####################
