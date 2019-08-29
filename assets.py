@@ -6,6 +6,7 @@ api calls using Poloniex, cryptocompare, coingecko Brasil Bitcoin, and google tr
 from config import *
 from cryptocompy import coin, price
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from poloniex import Poloniex
 from pprint import pprint
 from pycoingecko import CoinGeckoAPI
@@ -256,7 +257,7 @@ def get_rsi(df, display=False):
 
 def get_bbp(df, plot=False):
     data = find_change(df)
-    up, mid, low = ta.BBANDS(df.close, timeperiod=10, nbdevup=2, nbdevdn=2, matype=0)
+    up, mid, low = ta.BBANDS(df.close, timeperiod=15, nbdevup=2, nbdevdn=2, matype=0)
     data["upper_band"] = up
     data["lower_band"] = low
     data["mid_band"] = mid
@@ -268,6 +269,19 @@ def get_bbp(df, plot=False):
         plt.plot(data.time, data.close, label="price")
         plt.show()
     return data
+
+def get_sma(df, first, second, plot=False):
+    df["short_sma"] = df["close"].rolling(window=first).mean()
+    df["long_sma"] = df["close"].rolling(window=second).mean()
+    if plot:
+        df.close.plot()
+        df.long_sma.plot(label="{}-period sma".format(second))
+        df.short_sma.plot(label="{}-period sma".format(first))
+        plt.legend()
+        plt.show()
+    return df
+
+
 
 def trend_algo(df):
     prices = find_change(df)
@@ -331,17 +345,20 @@ def greed_fear_backtest(plot=False):
 
 
 def day_trade_BB_rsi_backtest(plot=False):
-    rsi = get_rsi(get_minute_data("BTC", 360, plot=False), display=False)
-    bbp = get_bbp(get_minute_data("BTC", 360, plot=False), plot=False)
+    minute = get_minute_data("BTC", 420, plot=False)
+    rsi = get_rsi(minute, display=False)
+    bbp = get_bbp(minute, plot=False)
     data = rsi.merge(bbp)
     data["buy"] = np.nan
     data["sell"] = np.nan
-    data.loc[(data.rsi < 35) & ((data.close >= data.lower_band - 12) | (data.close <= data.lower_band + 12)), "buy"] = data.close
-    data.loc[(data.rsi > 60) & ((data.close >= data.upper_band - 12) | (data.close <= data.upper_band + 12)), "sell"] = data.close
+    margem = 3
+    rsi_buy_limit = 30 #35 #20
+    rsi_sell_limit = 70 #65 #80
+    # data.loc[(data.rsi < rsi_buy_limit) & (data.close <= data.lower_band + margem), "buy"] = data.close
+    # data.loc[(data.rsi > rsi_sell_limit) & (data.close >= data.upper_band - margem), "sell"] = data.close
+    data.loc[(data.rsi < rsi_buy_limit), "buy"] = data.close
+    data.loc[(data.rsi > rsi_sell_limit), "sell"] = data.close
 
-    # data.loc[(data.rsi.shift(1) < 35) & ((data.close.shift(1) >= data.lower_band.shift(1) - 12) | (data.close.shift(1) <= data.lower_band.shift(1) + 12))
-    # & ((data.rsi > 35) | ((data.close <= data.lower_band - 12) | (data.close >= data.lower_band + 12))), "buy"] = data.close
-    
     if plot:
         print(data.to_string())
 
@@ -352,18 +369,19 @@ def day_trade_BB_rsi_backtest(plot=False):
 
         # ax1.plot(data.time, data.upper_band, color="red")
         # ax1.plot(data.time, data.lower_band, color="blue")
-        # ax1.plot(data.time, data.mid_band, color="orange")
+        ax1.plot(data.time, data.mid_band, color="orange")
 
         ax1.scatter(data.time, data.sell, color="red")
         ax1.scatter(data.time, data.buy, color="blue")
 
         ax1.plot(data.time, data.close, color="black")
         ax1.tick_params(axis='y', labelcolor="black")
+        ax1.xaxis.set_major_locator(MaxNLocator(nbins=7))
 
         ax2 = ax1.twinx()
 
         ax2.set_ylabel('RSI', color="purple")
-        # ax2.plot(data.time, data.rsi, label="rsi", color="purple")
+        ax2.plot(data.time, data.rsi, label="rsi", color="purple")
         ax2.tick_params(axis='y', labelcolor="purple")
         # ax1.xaxis.grid(True)
         fig.tight_layout()
@@ -373,10 +391,12 @@ def day_trade_BB_rsi_backtest(plot=False):
 ##################### {[ MONGODB ]} #####################
 
 
-def add_column(data):
+def add_column(collection, data):
+    collection.insert_one(data)
     pass
 
-def get_last_column():
+def get_last_column(collection):
+    collection.find_onde()
     pass
 
 
@@ -413,6 +433,7 @@ def send_msg(msg):
 # day_trade_BB_rsi_backtest(plot=True)
 # get_rsi(get_minute_data("BTC", 360), display=True)
 # get_bbp(get_minute_data("BTC", 360), plot=True)
+get_sma(get_minute_data("BTC", 360), 5, 10, plot=True)
 
 
 ##################### {[ TO-DO ]} #####################
