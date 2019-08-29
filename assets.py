@@ -359,6 +359,9 @@ def day_trade_BB_rsi_backtest(plot=False):
     data.loc[(data.rsi < rsi_buy_limit), "buy"] = data.close
     data.loc[(data.rsi > rsi_sell_limit), "sell"] = data.close
 
+    data["distance"] = np.nan
+    data.loc[(data.sell.notnull() | data.buy.notnull()), "distance"] = data.mid_band-data.close
+
     if plot:
         print(data.to_string())
 
@@ -371,8 +374,8 @@ def day_trade_BB_rsi_backtest(plot=False):
         # ax1.plot(data.time, data.lower_band, color="blue")
         ax1.plot(data.time, data.mid_band, color="orange")
 
-        ax1.scatter(data.time, data.sell, color="red")
-        ax1.scatter(data.time, data.buy, color="blue")
+        ax1.scatter(data.time, data.sell, color="red", s=abs(data.distance * 2))
+        ax1.scatter(data.time, data.buy, color="blue", s=abs(data.distance * 2))
 
         ax1.plot(data.time, data.close, color="black")
         ax1.tick_params(axis='y', labelcolor="black")
@@ -430,10 +433,10 @@ def send_msg(msg):
 # trend_algo("BTC", 7)
 # get_greed_fear_index(True)
 # greed_fear_backtest(plot=True)
-# day_trade_BB_rsi_backtest(plot=True)
+day_trade_BB_rsi_backtest(plot=True)
 # get_rsi(get_minute_data("BTC", 360), display=True)
 # get_bbp(get_minute_data("BTC", 360), plot=True)
-get_sma(get_minute_data("BTC", 360), 5, 10, plot=True)
+# get_sma(get_minute_data("BTC", 360), 5, 20, plot=True)
 
 
 ##################### {[ TO-DO ]} #####################
