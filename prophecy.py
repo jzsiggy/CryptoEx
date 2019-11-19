@@ -12,11 +12,11 @@ m = Prophet()
 
 
 def prophetize(ticker):
-  df = get_daily_data(ticker, 90)
+  df = get_daily_data(ticker, 1400)
   df.rename(columns={'time': 'ds', 'close': 'y'}, inplace=True)
 
   m.fit(df)
-  future = m.make_future_dataframe(periods=10)
+  future = m.make_future_dataframe(periods=360)
   forecast = m.predict(future)
 
   m.plot(forecast)
@@ -39,6 +39,6 @@ def test_prophecy(ticker):
   plt.show()
 
 
-# test_prophecy("ETH")
-prophetize("ETH")
+# test_prophecy("KMD")
+prophetize("XRP")
 
