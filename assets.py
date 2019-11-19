@@ -41,7 +41,7 @@ def get_bitbrasil_balance(display=False):
             print("[", coin.upper(), "]", quant)
         # print(r.text)
         print("[ TOTAL ]", montante)
-    return data
+    return montante
 
 def get_estimate_price(coin, display=False):
     url = "https://brasilbitcoin.com.br/api/estimate/sell/{}/1".format(coin.upper())
@@ -109,13 +109,14 @@ def check_orders(order_id):
     print(r.text)
     return data
 
-def get_transactions():
+def get_transactions(display=False):
     url = "https://brasilbitcoin.com.br/api/my_transactions"
     header = brasil_bit_header
     r = requests.get(url, headers=header)
     data = r.json()
-    for transaction in data:
-        print(transaction)
+    if display:
+        for transaction in data:
+            print(transaction)
     return data
 
 def cancel_order(order_id):
@@ -206,8 +207,8 @@ def get_pytrend_interest(display=False):
 ##################### {[ FEAR & GREED ]} #####################
 
 
-def get_greed_fear_index(display=False, backtest=False):
-    url = "https://api.alternative.me/fng/?limit=100&format=json&date_format=cn"
+def get_greed_fear_index(limit=100, display=False, backtest=False):
+    url = "https://api.alternative.me/fng/?limit={}&format=json&date_format=cn".format(limit)
     r = requests.get(url)
     j = r.json()
     data = pd.DataFrame(j["data"])
@@ -310,8 +311,8 @@ def trend_algo(df):
 
 
 def greed_fear_backtest(plot=False):
-    daily_data = get_daily_data("BTC", 100)
-    gf_index = get_greed_fear_index(backtest=True)
+    daily_data = get_daily_data("BTC", 200, plot=False)
+    gf_index = get_greed_fear_index(200, backtest=True)
     price = find_change(daily_data)
     gf_index = gf_index.shift(1)
     data = price.join(gf_index)
@@ -345,19 +346,20 @@ def greed_fear_backtest(plot=False):
 
 
 def day_trade_BB_rsi_backtest(plot=False):
-    minute = get_minute_data("BTC", 420, plot=False)
+    minute = get_daily_data("XRP", 365, plot=False)
     rsi = get_rsi(minute, display=False)
     bbp = get_bbp(minute, plot=False)
     data = rsi.merge(bbp)
+    data["rsi_rolling"] = data["rsi"].rolling(window=15).mean()
     data["buy"] = np.nan
     data["sell"] = np.nan
     margem = 3
-    rsi_buy_limit = 30 #35 #20
-    rsi_sell_limit = 70 #65 #80
-    # data.loc[(data.rsi < rsi_buy_limit) & (data.close <= data.lower_band + margem), "buy"] = data.close
-    # data.loc[(data.rsi > rsi_sell_limit) & (data.close >= data.upper_band - margem), "sell"] = data.close
-    data.loc[(data.rsi < rsi_buy_limit), "buy"] = data.close
-    data.loc[(data.rsi > rsi_sell_limit), "sell"] = data.close
+    rsi_buy_limit = 40 #35 #20
+    rsi_sell_limit = 60 #65 #80
+    # data.loc[(data.rsi < rsi_buy_limit) | (data.close <= data.lower_band + margem), "buy"] = data.close
+    # data.loc[(data.rsi > rsi_sell_limit) | (data.close >= data.upper_band - margem), "sell"] = data.close
+    data.loc[(data.rsi_rolling < rsi_buy_limit), "buy"] = data.close
+    data.loc[(data.rsi_rolling > rsi_sell_limit), "sell"] = data.close
 
     data["distance"] = np.nan
     data.loc[(data.sell.notnull() | data.buy.notnull()), "distance"] = data.mid_band-data.close
@@ -368,27 +370,43 @@ def day_trade_BB_rsi_backtest(plot=False):
         fig, ax1 = plt.subplots()
 
         ax1.set_xlabel("Time (min)")
-        ax1.set_ylabel('BTC', color="black")
+        ax1.set_ylabel('XRP', color="black")
 
-        # ax1.plot(data.time, data.upper_band, color="red")
-        # ax1.plot(data.time, data.lower_band, color="blue")
-        ax1.plot(data.time, data.mid_band, color="orange")
+        ax1.plot(data.time, data.upper_band, color="red", label="Superior Bollinger Band")
+        ax1.plot(data.time, data.lower_band, color="blue", label="Inferior Bollinger Band")
+        ax1.plot(data.time, data.mid_band, color="orange", label="15-day moving avg")
 
-        ax1.scatter(data.time, data.sell, color="red", s=abs(data.distance * 2))
-        ax1.scatter(data.time, data.buy, color="blue", s=abs(data.distance * 2))
+        ax1.scatter(data.time, data.sell, color="red", s=abs(data.distance * 3))
+        ax1.scatter(data.time, data.buy, color="blue", s=abs(data.distance * 3))
 
-        ax1.plot(data.time, data.close, color="black")
+        ax1.plot(data.time, data.close, color="black", label="Close")
         ax1.tick_params(axis='y', labelcolor="black")
-        ax1.xaxis.set_major_locator(MaxNLocator(nbins=7))
 
         ax2 = ax1.twinx()
 
         ax2.set_ylabel('RSI', color="purple")
         ax2.plot(data.time, data.rsi, label="rsi", color="purple")
+        # ax2.plot(data.time, data.rsi_rolling, label="rsi_sma", color="brown")
         ax2.tick_params(axis='y', labelcolor="purple")
-        # ax1.xaxis.grid(True)
+
+        ax2.xaxis.set_major_locator(MaxNLocator(nbins=7))
+
         fig.tight_layout()
+        fig.legend()
         plt.show()
+
+
+##################### {[ PERFORMANCE ]} #####################
+
+
+def get_performance():
+    first = get_transactions()[-1]["price"]
+    last = get_estimate_price("BTC")
+    btc_change = (last / float(first)) - 1
+    balance_change = (get_bitbrasil_balance() / 250) - 1
+    print("[ Balance Change ] {}".format(balance_change)) 
+    print("[ BTC Price Change ] {}".format(btc_change))
+
 
 
 ##################### {[ MONGODB ]} #####################
@@ -401,7 +419,6 @@ def add_column(collection, data):
 def get_last_column(collection):
     collection.find_onde()
     pass
-
 
 
 ##################### {[ TELEGRAM ]} #####################
@@ -434,9 +451,11 @@ def send_msg(msg):
 # get_greed_fear_index(True)
 # greed_fear_backtest(plot=True)
 day_trade_BB_rsi_backtest(plot=True)
-# get_rsi(get_minute_data("BTC", 360), display=True)
-# get_bbp(get_minute_data("BTC", 360), plot=True)
-# get_sma(get_minute_data("BTC", 360), 5, 20, plot=True)
+# get_rsi(get_daily_data("XRP", 360), display=True)
+# get_bbp(get_minute_data("KMD", 360), plot=True)
+# get_sma(get_daily_data("XMR", 300), 5, 20, plot=True)
+# get_performance()
+# get_daily_data("XMR", 50, plot=True)
 
 
 ##################### {[ TO-DO ]} #####################
