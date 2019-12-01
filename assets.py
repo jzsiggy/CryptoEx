@@ -128,6 +128,22 @@ def cancel_order(order_id):
     return data
 
 
+##################### {[ BINANCE ]} #####################
+
+
+def get_binance_close(pair):
+  close_price_list = []
+  data = requests.get('https://www.binance.com/api/v3/klines?symbol={}&interval=1w'.format(pair))
+  ohlc = data.text
+  ohlc = ohlc[2:-2].split("],[") 
+  for element in ohlc:
+    element = element.split(',')
+    close_price_list.append(float(element[4][1:-1]))
+  df = pd.DataFrame({ "close" : close_price_list })
+  # print(df)
+  return df
+
+
 ##################### {[ POLONIEX ]} #####################
 
 
@@ -190,6 +206,11 @@ def get_daily_data(ticker, quantity, plot=False, display=False):
         plt.grid(True)
         plt.show()
     return data
+
+def get_crypto_compy_coin_list():
+    coins = coin.get_coin_list(coins='all')
+    symbols = list(coins.keys())
+    return(symbols)
 
 
 ##################### {[ GOOGLE TRENDS ]} #####################
@@ -450,12 +471,13 @@ def send_msg(msg):
 # trend_algo("BTC", 7)
 # get_greed_fear_index(True)
 # greed_fear_backtest(plot=True)
-day_trade_BB_rsi_backtest(plot=True)
+# day_trade_BB_rsi_backtest(plot=True)
 # get_rsi(get_daily_data("XRP", 360), display=True)
 # get_bbp(get_minute_data("KMD", 360), plot=True)
 # get_sma(get_daily_data("XMR", 300), 5, 20, plot=True)
 # get_performance()
 # get_daily_data("XMR", 50, plot=True)
+# get_crypto_compy_coin_list()
 
 
 ##################### {[ TO-DO ]} #####################
