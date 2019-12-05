@@ -133,7 +133,7 @@ def cancel_order(order_id):
 
 def get_binance_close(pair):
   close_price_list = []
-  data = requests.get('https://www.binance.com/api/v3/klines?symbol={}&interval=1w'.format(pair))
+  data = requests.get('https://www.binance.com/api/v3/klines?symbol={}&interval=1d'.format(pair))
   ohlc = data.text
   ohlc = ohlc[2:-2].split("],[") 
   for element in ohlc:
