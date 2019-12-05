@@ -1,15 +1,17 @@
-from assets import get_binance_close
+from assets import get_binance_close, get_daily_data
 import numpy as np
 import sklearn
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.linear_model import LinearRegression
 
-from sklearn.preprocessing import scale
+from sklearn.preprocessing import scale, StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error, median_absolute_error
 
 from matplotlib import pyplot as plt
+
+import sys
 
 model = RandomForestRegressor()
 # model = DecisionTreeRegressor()
@@ -46,35 +48,38 @@ def create_x_y_subsets(arr, step):
   X, y = np.array(X), np.array(y)
   return(X, y)
 
-def train_model(df, step, model):
-  data = df.head(int(len(df) * 0.75))
-  price = data.close
+def train_model(data, step, model):
+  price = data[ : int(len(data) * 0.75) ]
 
   X_train, y_train = create_x_y_subsets(price, step)
-  X_train, y_train = scale(X_train), scale(y_train)
+
   model.fit(X_train, y_train)
 
   return(model)
 
-def get_regression(df, step, model):
-  model = train_model(df, step, model)
-  data = df.tail(int(len(df) * 0.25))
-  price = list(data.close)
+def get_regression(data, step, model, plot=False):
+  data = scale(data)
+  
+  model = train_model(data, step, model)
+  
+  price = data[ int(len(data) * 0.75) : ]
 
   X, y = create_x_y_subsets(price, step)
-  X, y = scale(X), scale(y)
 
   y_pred = model.predict(X)
 
   percentage_of_hits= hit_the_trend(y_pred, y)
   print("Percent of times right about the trend: ", percentage_of_hits)
 
-  plt.plot(y_pred, color='b', label='pred')
-  plt.plot(y, color='orange', label='actual price')
-  plt.legend()
-  plt.show()
+  if plot:
+    plt.plot(y_pred, color='b', label='pred')
+    plt.plot(y, color='orange', label='actual price')
+    plt.legend()
+    plt.show()
 
-  return percentage_of_hits, y_pred[-2:]
+  data = np.append(data, [y_pred[-1]])
+  print(len(y_pred), y_pred[-1])
 
+  return y, y_pred
 
-# get_regression(get_binance_close("LTCBTC"), 3, model)
+# get_regression(list(get_daily_data("BTC", 500)["close"]), 3, model, plot=True)
