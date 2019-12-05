@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <link rel="stylesheet" href="styles.css">
+  <title>CryptoEx</title>
+</head>
+<body>
+  
+
+  <form>
+    <div>
+      <label for="coin">Coin pair:</label>
+      <select name="coin" id="coin-selector">
+        <option value="BTC">BTC</option>
+        <option value="ETH">ETH</option>
+        <option value="LTC">LTC</option>
+        <option value="EOS">EOS</option>
+        <option value="XRP">XRP</option>
+        <option value="BCH">BCH</option>
+        <option value="ETC">ETC</option>
+        <option value="BNB">BNB</option>
+        <option value="XMR">XMR</option>
+        <option value="DASH">DASH</option>
+        <option value="DOGE">DOGE</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="regressor">Regressor:</label>
+      <select name="regressor" id="model-selector">
+        <option value="Linear">Linear</option>
+        <option value="Random Forest">Random Forest</option>
+        <option value="Gradient Boost">Gradient Boost</option>
+        <option value="Decision Tree">Decision Tree</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="time-step">Time Step (days):</label>
+      <select name="time-step" id="time-step-selector">
+        <option value="1">1</option>
+        <option value="3">3</option>
+        <option value="7">7</option>
+      </select>
+    </div>
+  </form>
+
+  <button class="submit-btn">Predict</button>
+
+  <canvas id="myChart"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.0/axios.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
